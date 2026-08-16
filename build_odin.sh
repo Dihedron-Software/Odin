@@ -112,8 +112,14 @@ Darwin)
 		echo "Warning: MacOSX.sdk not found."
 	fi
 
-	CXXFLAGS="$CXXFLAGS $($LLVM_CONFIG --cxxflags --ldflags) ${darwin_sysroot}"
-	LDFLAGS="$LDFLAGS -liconv -ldl -framework System -lLLVM"
+	if [ -n "${ODIN_STATIC_LLVM:-}" ]; then
+		# Self-contained binary: static LLVM (+ its zstd) instead of Homebrew's libLLVM.dylib; system -L first keeps Apple's libc++/libunwind.
+		CXXFLAGS="-L/usr/lib/system -L/usr/lib $CXXFLAGS $($LLVM_CONFIG --cxxflags --ldflags) ${darwin_sysroot}"
+		LDFLAGS="$LDFLAGS -liconv -ldl -framework System $($LLVM_CONFIG --link-static --libs core passes aarch64 arm riscv webassembly x86) $($LLVM_CONFIG --link-static --system-libs | sed 's/-lzstd//; s#[^ ]*libz3[^ ]*##') $(brew --prefix zstd)/lib/libzstd.a -Wl,-dead_strip_dylibs -Wl,-dead_strip -Wl,-x"
+	else
+		CXXFLAGS="$CXXFLAGS $($LLVM_CONFIG --cxxflags --ldflags) ${darwin_sysroot}"
+		LDFLAGS="$LDFLAGS -liconv -ldl -framework System -lLLVM"
+	fi
 	;;
 FreeBSD)
 	CXXFLAGS="$CXXFLAGS $($LLVM_CONFIG --cxxflags --ldflags)"
